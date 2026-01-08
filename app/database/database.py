@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
@@ -62,7 +62,7 @@ def test_db_connection():
     try:
         db = SessionLocal()
         # Execute a simple query to test connection
-        result = db.execute("SELECT 1").fetchone()
+        result = db.execute(text("SELECT 1")).fetchone()
         db.close()
         return result is not None
     except Exception as e:
