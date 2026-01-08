@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import os
 from dotenv import load_dotenv
+import sys
 
 # Load environment variables
 load_dotenv()
@@ -15,13 +16,13 @@ required_env_vars = [
 
 for var in required_env_vars:
     if not os.getenv(var):
-        raise ValueError(f"Required environment variable {var} is not set")
+        print(f"Error: Required environment variable {var} is not set")
+        sys.exit(1)
 
 # Import routers
 from app.auth.auth import router as auth_router
 from app.todos.crud import router as todos_router
-from app.database.database import engine
-from app.database.models import Base
+from app.database.database import engine, test_db_connection
 
 app = FastAPI(
     title="Todo Web Application API",
@@ -46,7 +47,20 @@ app.add_middleware(
 # Create database tables
 @app.on_event("startup")
 def startup_event():
-    Base.metadata.create_all(bind=engine)
+    # Test database connectivity
+    if not test_db_connection():
+        print("Error: Unable to connect to the database. Please check your DATABASE_URL configuration.")
+        sys.exit(1)
+
+    print("Database connectivity test passed.")
+
+    # Only create tables if not using PostgreSQL in production
+    # In production, migrations should handle table creation
+    import os
+    if os.getenv("ENVIRONMENT") != "production":
+        from app.database.models import Base
+        Base.metadata.create_all(bind=engine)
+        print("Database tables created.")
 
 # Include routers
 app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
@@ -58,4 +72,10 @@ def read_root():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "service": "Todo API"}
+    # Test database connectivity as part of health check
+    db_connected = test_db_connection()
+    return {
+        "status": "healthy",
+        "service": "Todo API",
+        "database_connected": db_connected
+    }
