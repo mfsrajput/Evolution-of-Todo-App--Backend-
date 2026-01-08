@@ -4,13 +4,23 @@ from sqlalchemy import pool
 from alembic import context
 from dotenv import load_dotenv
 import os
+import sys
+from pathlib import Path
+
+# Add the project root to the Python path to allow imports
+sys.path.append(str(Path(__file__).parent.parent))
 
 # Load environment variables
 load_dotenv()
 
 # Import your models and database configuration
-from app.database.database import Base
-from app.database.models import User, Todo
+try:
+    from app.database.database import Base
+    from app.database.models import User, Todo
+except ImportError as e:
+    print(f"Import error: {e}")
+    print("Make sure you're running alembic from the project root directory")
+    raise
 
 # This is the Alembic Config object
 config = context.config
@@ -23,7 +33,12 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 # Override the sqlalchemy.url with DATABASE_URL from environment
-config.set_main_option('sqlalchemy.url', os.getenv('DATABASE_URL', 'sqlite:///./todo_app.db'))
+database_url = os.getenv('DATABASE_URL')
+if not database_url:
+    print("Error: DATABASE_URL environment variable is not set")
+    sys.exit(1)
+
+config.set_main_option('sqlalchemy.url', database_url)
 
 
 def run_migrations_offline() -> None:
