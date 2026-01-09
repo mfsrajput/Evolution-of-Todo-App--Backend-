@@ -1,23 +1,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import os
 from dotenv import load_dotenv
 import sys
 
 # Load environment variables
 load_dotenv()
 
-# Validate required environment variables at startup
-required_env_vars = [
-    "DATABASE_URL",
-    "SECRET_KEY",
-    "ACCESS_TOKEN_EXPIRE_MINUTES"
-]
-
-for var in required_env_vars:
-    if not os.getenv(var):
-        print(f"Error: Required environment variable {var} is not set")
-        sys.exit(1)
+# Import settings
+from app.config import settings
 
 # Import routers
 from app.auth.auth import router as auth_router
@@ -30,10 +20,8 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Get allowed origins from environment variable
-cors_origins = os.getenv("CORS_ALLOWED_ORIGINS", "").split(",")
-# Remove any empty strings and strip whitespace
-cors_origins = [origin.strip() for origin in cors_origins if origin.strip()]
+# Get allowed origins from settings
+cors_origins = settings.cors_allowed_origins
 
 # Add CORS middleware
 app.add_middleware(
@@ -49,15 +37,14 @@ app.add_middleware(
 def startup_event():
     # Test database connectivity
     if not test_db_connection():
-        print("Error: Unable to connect to the database. Please check your DATABASE_URL configuration.")
-        sys.exit(1)
-
-    print("Database connectivity test passed.")
+        print("Warning: Unable to connect to the database. Please check your DATABASE_URL configuration.")
+        # Don't exit the application, just log the error
+    else:
+        print("Database connectivity test passed.")
 
     # Only create tables if not using PostgreSQL in production
     # In production, migrations should handle table creation
-    import os
-    if os.getenv("ENVIRONMENT") != "production":
+    if settings.environment != "production":
         from app.database.models import Base
         Base.metadata.create_all(bind=engine)
         print("Database tables created.")
@@ -73,9 +60,19 @@ def read_root():
 @app.get("/health")
 def health_check():
     # Test database connectivity as part of health check
-    db_connected = test_db_connection()
-    return {
-        "status": "healthy",
-        "service": "Todo API",
-        "database_connected": db_connected
-    }
+    try:
+        db_connected = test_db_connection()
+        return {
+            "status": "healthy" if db_connected else "degraded",
+            "service": "Todo API",
+            "database_connected": db_connected,
+            "timestamp": __import__('datetime').datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "service": "Todo API",
+            "database_connected": False,
+            "error": str(e),
+            "timestamp": __import__('datetime').datetime.utcnow().isoformat()
+        }

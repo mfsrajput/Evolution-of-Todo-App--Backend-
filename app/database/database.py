@@ -15,7 +15,8 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     print("Error: DATABASE_URL environment variable is not set.")
     print("Please set DATABASE_URL with your database connection string.")
-    sys.exit(1)
+    # Don't exit here, let the application handle it during startup
+    # sys.exit(1)  # Commented out to prevent early exit
 
 # Determine if using PostgreSQL vs SQLite for engine configuration
 if "postgresql" in DATABASE_URL.lower():
